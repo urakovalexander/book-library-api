@@ -6,23 +6,34 @@ use Alexanderurakov\BookLibraryApi\Config\Database;
 use PDO;
 use PDOException;
 
+/**
+ * @OA\Schema(
+ *   schema="User",
+ *   type="object",
+ *   description="Пользователь",
+ *   @OA\Property(property="id", type="integer", description="ID пользователя"),
+ *   @OA\Property(property="username", type="string", description="Имя пользователя"),
+ *   @OA\Property(property="password_hash", type="string", description="Хеш пароля"),
+ *   @OA\Property(property="created_at", type="string", format="date-time", description="Дата создания"),
+ *   @OA\Property(property="updated_at", type="string", format="date-time", description="Дата обновления")
+ * )
+ */
 class User {
-    private $conn;
-    private $table_name = "users";
+    private PDO $conn;
+    private string $table_name = "users";
 
     public function __construct() {
-        $database = new Database();
-        $this->conn = $database->conn;
+        $this->conn = Database::getInstance();
     }
 
     /**
-     * Проверяет, существует ли пользователь с данным именем.
+     * Проверяет, существует ли пользователь с указанным именем.
      *
-     * @param string $username
-     * @return bool
+     * @param string $username Имя пользователя.
+     * @return bool Возвращает true, если пользователь существует, иначе false.
      */
-    public function userExists($username) {
-        $query = "SELECT id FROM " . $this->table_name . " WHERE username = :username";
+    public function userExists(string $username): bool {
+        $query = "SELECT id FROM $this->table_name WHERE username = :username";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':username', $username);
         $stmt->execute();
@@ -33,50 +44,47 @@ class User {
     /**
      * Создает нового пользователя.
      *
-     * @param string $username
-     * @param string $password
-     * @return bool
+     * @param string $username Имя пользователя.
+     * @param string $password Пароль пользователя.
+     * @return bool Возвращает true, если пользователь успешно создан, иначе false.
      */
-    public function create($username, $password) {
+    public function create(string $username, string $password): bool {
         if ($this->userExists($username)) {
-            echo "Username already exists.";
-            return false;
+            return false; // Пользователь уже существует
         }
 
-        $query = "INSERT INTO " . $this->table_name . " (username, password) VALUES (:username, :password)";
+        $query = "INSERT INTO $this->table_name (username, password_hash) VALUES (:username, :password)";
         $stmt = $this->conn->prepare($query);
 
-        // Закодировать пароль
         $password_hash = password_hash($password, PASSWORD_BCRYPT);
-
         $stmt->bindParam(':username', $username);
         $stmt->bindParam(':password', $password_hash);
 
         try {
             return $stmt->execute();
         } catch (PDOException $e) {
-            // Логирование ошибки
             echo "Error: " . $e->getMessage();
             return false;
         }
     }
 
     /**
-     * Проверяет имя пользователя и пароль для входа.
+     * Аутентифицирует пользователя.
      *
-     * @param string $username
-     * @param string $password
-     * @return mixed
+     * @param string $username Имя пользователя.
+     * @param string $password Пароль пользователя.
+     * @return int|false Возвращает ID пользователя, если аутентификация успешна, иначе false.
      */
-    public function login($username, $password) {
-        $query = "SELECT id, password FROM " . $this->table_name . " WHERE username = :username";
+    public function login(string $username, string $password): false|int
+    {
+        $query = "SELECT id, password_hash FROM $this->table_name WHERE username = :username";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':username', $username);
         $stmt->execute();
 
         if ($stmt->rowCount() > 0) {
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if (password_verify($password, $row['password'])) {
+            if (password_verify($password, $row['password_hash'])) {
                 return $row['id'];
             }
         }
@@ -84,32 +92,32 @@ class User {
     }
 
     /**
-     * Получает список всех пользователей.
+     * Возвращает всех пользователей.
      *
-     * @return array
+     * @return array Массив пользователей с полями id и username.
      */
-    public function getAllUsers() {
-        $query = "SELECT id, username FROM " . $this->table_name;
+    public function getAllUsers(): array {
+        $query = "SELECT id, username FROM $this->table_name";
         $stmt = $this->conn->prepare($query);
 
         try {
             $stmt->execute();
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
-            // Логирование ошибки
             echo "Error: " . $e->getMessage();
             return [];
         }
     }
 
     /**
-     * Возвращает ID пользователя по его имени.
+     * Возвращает ID пользователя по имени.
      *
-     * @param string $username
-     * @return mixed ID пользователя или false, если пользователь не найден
+     * @param string $username Имя пользователя.
+     * @return int|false ID пользователя или false, если пользователь не найден.
      */
-    public function getIdByUsername($username) {
-        $query = "SELECT id FROM " . $this->table_name . " WHERE username = :username";
+    public function getIdByUsername(string $username): false|int
+    {
+        $query = "SELECT id FROM $this->table_name WHERE username = :username";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':username', $username);
         $stmt->execute();
